@@ -91,6 +91,7 @@ class StateEstimator():
             self.z = np.matrix(self.med[:,5])
             self.z_real = np.matrix(self.med[:,4])
 
+
     def Begin(self):
         #DEFININE PARAMETROS DE PRECISAO
         #np.set_printoptions(precision=2, suppress=True)
