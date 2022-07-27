@@ -1,7 +1,7 @@
 import numpy as np
 
 def Y_bus(sys):
-#def dimensão do y busra
+#def dimensão do y barra
     max = 0
     for i in sys:
         if i[0] > max:
@@ -10,19 +10,26 @@ def Y_bus(sys):
             max = i[1]
 ##################    
     y_buss = np.zeros((int(max.real),int(max.real)), dtype=complex)
-    for i in range(y_buss.shape[0]):
-        value = 0 + 0j
-        for k in range(y_buss.shape[1]):
+    for i in range(np.shape(y_buss)[0]):
+        for k in range(np.shape(y_buss)[1]):
+            value = 0 + 0j
             if k < i:
-                for j in range(sys.shape[0]):
-                    if (sys[j][0] == i+1 and sys[j][1] == k+1) or (sys[j][0] == k+1 and sys[j][1] == i+1):
+                for l in range(len(sys)):
+                    if (sys[l][0] == i+1 and sys[l][1] == k+1) or (sys[l][0] == k+1 and sys[l][1] == i+1):
                         a = i
                         b = k
-                        y_buss[a][b] =  -1/(sys[j][2] + sys[j][3])
-                        y_buss[b][a] =  -1/(sys[j][2] + sys[j][3])
+                        # #VERSÃO Y
+                        # y_buss[a][b] =  -1*np.complex(sys[l][2] + sys[l][3]*1j)
+                        # y_buss[b][a] =  -1*np.complex(sys[l][2] + sys[l][3]*1j)
+                        #VERSÃO Z
+                        y_buss[a][b] =  -1/np.complex(sys[l][2] + sys[l][3]*1j)
+                        y_buss[b][a] =  -1/np.complex(sys[l][2] + sys[l][3]*1j)
             elif i == k:
-                for j in range(sys.shape[0]):
-                    if sys[j][0] == i+1 or sys[j][1] == i+1:
-                        value = value + 1/(sys[j][2] + sys[j][3])
+                for l in range(len(sys)):
+                    if sys[l][0] == i+1 or sys[l][1] == i+1:
+                        #VERSÃO Y
+                        value = value + 1/np.complex(sys[l][2] + sys[l][3]*1j) + np.complex(sys[l][4] + sys[l][5]*1j)/2
+                        # #VERSÃO Z
+                        # value = value + 1/np.complex(sys[l][2] + sys[l][3]*1j) + 1/(np.complex(sys[l][4] + sys[l][5]*1j)/2)
                 y_buss[i][k] = value
     return y_buss

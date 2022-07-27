@@ -1,7 +1,12 @@
+from turtle import position
+from src.buscar_ramos import find_branch
+from src.buscar_angulo import get_teta
+from src.buscar_v import get_v
 import numpy as np
 import math
 
 def Jacob(x, sys, y_bus, med, nbus):  
+    x  = np.array(x)[:,0]
     ang = nbus - 1
     ten = nbus
     jac = np.empty((0,ang+ten))
@@ -11,174 +16,177 @@ def Jacob(x, sys, y_bus, med, nbus):
     teta1 = 0.0
     teta2 = 0.0
     g = 0.0
-    b = 0.0j
+    b = 0.0
     g_shunt = 0.0
     b_shunt = 0.0
+    for k in range(np.shape(med_types)[0]):
     #TIPO 1 (FLUXO DE POTêNCIA ATIVA):
-    positions = np.where(med_types==1)[0]
-    #ITERAÇÂO PARA A QUANTIDADE DE MEDIDAS TIPO 1
-    for k in positions:
-        value = np.zeros(ang+ten)
-        #ENCONTRANDO A busRA PARA   
-        data_from = int(med[k][2] - 1)
-        data_to = int(med[k][3] - 1)
-        if data_from == 0:
-            teta1 = 0
-            teta2 = x[data_to-1]
-        elif data_to == 0:
-            teta1 = x[data_from-1]
-            teta2 = 0
-        else:
-            teta1 = x[data_from-1]
-            teta2 = x[data_to-1]
-        v1 = x[ang + data_from]
-        v2 = x[ang + data_to]
-        for i in sys:
-            if i[0] == data_from+1 and i[1]==data_to+1:
-                impedance = i[2] + i[3]
-                reactance = 1/impedance
-                g = reactance.real
-                b = reactance.imag
-                break
-        if data_from -1 >= 0:
-            dteta1 = v1*v2*(g*math.sin(teta1-teta2)-b*math.cos(teta1-teta2))
-            value[data_from-1] = dteta1
-        if data_to -1 >= 0:
-            dteta2 = -1*v1*v2*(g*math.sin(teta1-teta2)-b*math.cos(teta1-teta2))
-            value[data_to-1] = dteta2
-        dv1 = -v2*(g*math.cos(teta1-teta2)-b*math.sin(teta1-teta2))+2*(g+g_shunt)*v1
-        value[data_from+ang] = dv1
-        dv2 = -v1*(g*math.cos(teta1-teta2)+b*math.sin(teta1-teta2))
-        value[data_to+ang] = dv2
-        jac = np.vstack([jac, value])
-    
-    #TIPO 3 (INJEÇÃO DE POTêNCIA ATIVA):
-    positions = np.where(med_types==3)[0]
-    #ITERAÇÂO PARA A QUANTIDADE DE MEDIDAS TIPO 3
-    for k in positions:
-        value = np.zeros(ang+ten)
-        #ENCONTRANDO POSICAO DAS busRAS 
-        data_from = int(med[k][2] - 1)
-        dtetai = 0
-        dvi = 0
-        #CALCULO DO dP/dTi
-        i = data_from
-        Bii = y_bus[i][i].imag
-        Gii = y_bus[i][i].real
-        if i > 0:
-            for j in range(nbus):
-                if i == 0:
-                    teta1 = 0
-                else:
-                    teta1 = x[i-1]
-                if j == 0:
-                    teta2 = 0
-                else:
-                    teta2 = x[j - 1]
-                v1 = x[i+(nbus-1)]
-                v2 = x[j+(nbus-1)]
-                G = y_bus[i][j].real
-                B = y_bus[i][j].imag
-                dtetai = dtetai + v1*v2*(-G*math.sin(teta1-teta2)+B*math.cos(teta1-teta2))
-                dvi = dvi + v2*(G*math.cos(teta1-teta2)+B*math.sin(teta1-teta2))
-                if j!=i:
-                    if j>0:
-                        dtetaj = v1*v2*(G*math.sin(teta1-teta2)-B*math.cos(teta1-teta2))
-                        value[j-1] = dtetaj
-                    dvj = v1*(G*math.cos(teta1-teta2)-B*math.sin(teta1-teta2))
-                    value[j + nbus - 1] = dvj
+        if(med_types[k] == 1):
+            value = np.zeros(ang+ten)
 
-            value[i-1] = dtetai - (v1**2)*Bii
-            value[i - 1 + nbus] = dvi + v1*Gii
-        jac = np.vstack([jac, value])
+            #DEFININDO AS BARRAS E POSICOES NO JACOBIANO  
+            data_from = int(med[k][2])
+            position_from = data_from - 1
+            data_to = int(med[k][3])
+            position_to = data_to - 1
+
+            #RECEBENDO OS VALORES DE V TETA E RAMOS
+            v1, v2 = get_v(x, data_from, data_to, nbus)
+            teta1, teta2 = get_teta(x, data_from, data_to)
+            g, b, g_shunt, b_shunt = find_branch(sys, data_from, data_to)
+
+            #CALCULANDOAS DERIVADAS DE TETA
+            if data_from != 1:
+                dteta1 = v1*v2*(g*math.sin(teta1 - teta2) - b*math.cos(teta1 - teta2))
+                value[position_from - 1] = dteta1
+            if data_to != 1:
+                dteta2 = -1*v1*v2*(g*math.sin(teta1 - teta2) - b*math.cos(teta1 - teta2))
+                value[position_to - 1] = dteta2
+            
+            #CALCULANDO AS DERIVADAS DE TENSÃO
+            dv1 = -v2*(g*math.cos(teta1-teta2)+b*math.sin(teta1-teta2))+2*(g+g_shunt)*v1
+            value[position_from + ang] = dv1
+            dv2 = -v1*(g*math.cos(teta1-teta2)+b*math.sin(teta1-teta2))
+            value[position_to + ang] = dv2
+            
+            #ADICIONA NO JACOBIANO
+            jac = np.vstack([jac, value])
+
+        if(med_types[k] == 3):       
+        #TIPO 3 (INJEÇÃO DE POTêNCIA ATIVA):
+            value = np.zeros(ang+ten)
+
+            #DEFININDO AS BARRAS E POSICOES NO JACOBIANO  
+            data_from = int(med[k][2])
+            position_from = data_from - 1
+            data_to = int(med[k][3])
+            position_to = data_to - 1
+            dteta1 = 0
+            dv1 = 0
+            Gii = y_bus[position_from][position_from].real
+            Bii = y_bus[position_from][position_from].imag
+            for j in range(nbus):
+
+                data_to = j + 1
+                position_to = j
+                #RECEBENDO OS VALORES DE V TETA E RAMOS
+                v1, v2 = get_v(x, data_from, data_to, nbus)
+                teta1, teta2 = get_teta(x, data_from, data_to)
+                G = y_bus[position_from][position_to].real
+                B = y_bus[position_from][position_to].imag
                 
-    #TIPO 2 (FLUXO DE POTêNCIA REATIVA):
-    positions = np.where(med_types==2)[0]
-    #ITERAÇÂO PARA A QUANTIDADE DE MEDIDAS TIPO 1
-    for k in positions:
-        value = np.zeros(ang+ten)
-        #ENCONTRANDO A busRA PARA   
-        data_from = int(med[k][2] - 1)
-        data_to = int(med[k][3] - 1)
-        if data_from == 0:
-            teta1 = 0
-            teta2 = x[data_to-1]
-        elif data_to == 0:
-            teta1 = x[data_from-1]
-            teta2 = 0
-        else:
-            teta1 = x[data_from-1]
-            teta2 = x[data_to-1]
-        v1 = x[ang + data_from]
-        v2 = x[ang + data_to]
-        for i in sys:
-            if i[0] == data_from+1 and i[1]==data_to+1:
-                impedance = i[2] + i[3]
-                reactance = 1/impedance
-                g = reactance.real
-                b = reactance.imag
-                break
-        if data_from -1 >= 0:
-            dteta1 = -1*v1*v2*(g*math.cos(teta1-teta2)+b*math.sin(teta1-teta2))
-            value[data_from-1] = dteta1
-        if data_to -1 >= 0:
-            dteta2 = v1*v2*(g*math.cos(teta1-teta2)+b*math.sin(teta1-teta2))
-            value[data_to-1] = dteta2
-        dv1 = -v2*(g*math.sin(teta1-teta2)-b*math.cos(teta1-teta2))-2*(b+b_shunt)*v1
-        value[data_from+ang] = dv1
-        dv2 = -v1*(g*math.sin(teta1-teta2)-b*math.cos(teta1-teta2))
-        value[data_to+ang] = dv2
-        jac = np.vstack([jac, value])
+                #CALCULANDO OS SOMATORIOS
+                dteta1 = dteta1 + v1*v2*(-G*math.sin(teta1-teta2)+B*math.cos(teta1-teta2))
+                dv1 = dv1 + v2*(G*math.cos(teta1-teta2)+B*math.sin(teta1-teta2))
+
+                #CALCULADO A DERIVADA DE TETA 2
+                if data_to != 1:
+                    dteta2 = v1*v2*(G*math.sin(teta1 - teta2) - B*math.cos(teta1 - teta2))
+                    value[position_to - 1] = dteta2
+
+                #CALCULADO A DERIVADA DE v 2
+                dv2 = v1*(G*math.cos(teta1 - teta2) + B*math.sin(teta1 - teta2))
+                value[position_to + ang] = dv2
+
+            #DEFININDO VALORES DAS DERIVADAS DE TETA E V
+            if data_to != 1:
+                value[position_from - 1] = dteta1 - (v1**2)*Bii
+            value[position_from + ang] = dv1 + v1*Gii
+            
+            #ADICIONA NO JACOBIANO
+            jac = np.vstack([jac, value])
+        
+        if(med_types[k] == 2):
+            #TIPO 2 (FLUXO DE POTêNCIA REATIVA):
+            value = np.zeros(ang+ten)
+
+            #DEFININDO AS BARRAS E POSICOES NO JACOBIANO  
+            data_from = int(med[k][2])
+            position_from = data_from - 1
+            data_to = int(med[k][3])
+            position_to = data_to - 1
+
+            #RECEBENDO OS VALORES DE V TETA E RAMOS
+            v1, v2 = get_v(x, data_from, data_to, nbus)
+            teta1, teta2 = get_teta(x, data_from, data_to)
+            g, b, g_shunt, b_shunt = find_branch(sys, data_from, data_to)
+
+            #CALCULANDOAS DERIVADAS DE TETA
+            if data_from != 1:
+                dteta1 = -v1*v2*(g*math.cos(teta1 - teta2) + b*math.sin(teta1 - teta2))
+                value[position_from - 1] = dteta1
+            if data_to != 1:
+                dteta2 = v1*v2*(g*math.cos(teta1 - teta2) + b*math.sin(teta1 - teta2))
+                value[position_to - 1] = dteta2
+            
+            #CALCULANDO AS DERIVADAS DE TENSÃO
+            dv1 = -v2*(g*math.sin(teta1 - teta2) - b*math.cos(teta1 - teta2)) - 2*v1*(b+b_shunt)
+            value[position_from + ang] = dv1
+            dv2 = -v1*(g*math.sin(teta1 - teta2) - b*math.cos(teta1 - teta2))
+            value[position_to + ang] = dv2
+            
+            #ADICIONA NO JACOBIANO
+            jac = np.vstack([jac, value])
     
-    #TIPO 4 (INJEÇÃO DE POTêNCIA REATIVA):
-    positions = np.where(med_types==4)[0]
-    #ITERAÇÂO PARA A QUANTIDADE DE MEDIDAS TIPO 4
-    for k in positions:
-        value = np.zeros(ang+ten)
-        #ENCONTRANDO POSICAO DAS busRAS 
-        data_from = int(med[k][2] - 1)
-        dtetai = 0
-        dvi = 0
-        #CALCULO DO dP/dTi
-        i = data_from
-        Bii = y_bus[i][i].imag
-        Gii = y_bus[i][i].real
-        if i > 0:
+        if(med_types[k] == 4):
+        #TIPO 4 (INJEÇÃO DE POTêNCIA REATIVA):
+            value = np.zeros(ang+ten)
+
+            #DEFININDO AS BARRAS E POSICOES NO JACOBIANO  
+            data_from = int(med[k][2])
+            position_from = data_from - 1
+            data_to = int(med[k][3])
+            position_to = data_to - 1
+            dteta1 = 0
+            dv1 = 0
+            Gii = y_bus[position_from][position_from].real
+            Bii = y_bus[position_from][position_from].imag
             for j in range(nbus):
-                if i == 0:
-                    teta1 = 0
-                else:
-                    teta1 = x[i-1]
-                if j == 0:
-                    teta2 = 0
-                else:
-                    teta2 = x[j - 1]
-                v1 = x[i+(nbus-1)]
-                v2 = x[j+(nbus-1)]
-                G = y_bus[i][j].real
-                B = y_bus[i][j].imag
-                dtetai = dtetai + v1*v2*(G*math.cos(teta1-teta2)+B*math.sin(teta1-teta2))
-                dvi = dvi + v2*(G*math.sin(teta1-teta2)-B*math.cos(teta1-teta2))
-                if j!=i:
-                    if j>0:
-                        dtetaj = v1*v2*(-G*math.cos(teta1-teta2)-B*math.sin(teta1-teta2))
-                        value[j-1] = dtetaj
-                    dvj = v1*(G*math.sin(teta1-teta2)-B*math.cos(teta1-teta2))
-                    value[j + nbus - 1] = dvj
 
-            value[i-1] = dtetai - (v1**2)*Gii
-            value[i - 1 + nbus] =dvi - v1*Bii
-        jac = np.vstack([jac, value])   
+                data_to = j + 1
+                position_to = j
+                #RECEBENDO OS VALORES DE V TETA E RAMOS
+                v1, v2 = get_v(x, data_from, data_to, nbus)
+                teta1, teta2 = get_teta(x, data_from, data_to)
+                G = y_bus[position_from][position_to].real
+                B = y_bus[position_from][position_to].imag
+                
+                #CALCULANDO OS SOMATORIOS
+                dteta1 = dteta1 + v1*v2*(G*math.cos(teta1-teta2) + B*math.sin(teta1-teta2))
+                dv1 = dv1 + v2*(G*math.sin(teta1-teta2) - B*math.cos(teta1-teta2))
 
-    #TIPO 5 (MODULO DE TENSAO):
-    positions = np.where(med_types==5)[0]
-    #ITERAÇÂO PARA A QUANTIDADE DE MEDIDAS TIPO 4
-    for k in positions:
-        value = np.zeros(ang+ten)
-        #ENCONTRANDO POSICAO DAS busRAS 
-        data_from = int(med[k][2] - 1)
-        value[ang+data_from] = 1.0
-        jac = np.vstack([jac, value]) 
+                #CALCULADO A DERIVADA DE TETA 2
+                if data_to != 1:
+                    dteta2 = v1*v2*(-G*math.cos(teta1 - teta2) - B*math.sin(teta1 - teta2))
+                    value[position_to - 1] = dteta2
+
+                #CALCULADO A DERIVADA DE v 2
+                dv2 = v1*(G*math.sin(teta1 - teta2) - B*math.cos(teta1 - teta2))
+                value[position_to + ang] = dv2
+
+            #DEFININDO VALORES DAS DERIVADAS DE TETA E V
+            if data_from != 1:
+                value[position_from - 1] = dteta1 - (v1**2)*Gii
+            value[position_from + ang] = dv1 - v1*Bii
+            
+            #ADICIONA NO JACOBIANO
+            jac = np.vstack([jac, value])  
+
+        if(med_types[k] == 5):
+            #TIPO 5 (MODULO DE TENSAO):
+
+            value = np.zeros(ang+ten)
+            #ENCONTRANDO POSICAO DAS BARRAS 
+            data_from = int(med[k][2])
+            position_from = data_from - 1
+
+            #DEFININDO VALOR DA DERIVADA
+            value[position_from + ang] = 1.0
+
+            #ADICIONANDO NO JACOBIANO
+            jac = np.vstack([jac, value]) 
     
+    #SUBSTITUINDO OS -0 POR 0
     jac = np.where(jac ==-0, 0, jac)
-    return np.matrix(jac)
+    return np.matrix(jac, dtype=np.float64)
+    #return jac
